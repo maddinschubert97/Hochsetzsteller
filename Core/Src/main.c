@@ -63,6 +63,12 @@ TIM_HandleTypeDef htim8;
 uint32_t	value_adc1[2];	//
 uint32_t	value_adc2[2];	//
 uint32_t	value_adc3[2];	//
+
+/*uint32_t	lem1[10];
+uint32_t	lem2[10];
+uint32_t	lem1_ref[10];
+uint32_t	lem2_ref[10];
+uint32_t	lem_count;*/
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -491,7 +497,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 4200;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 99;
+  htim4.Init.Period = 9;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

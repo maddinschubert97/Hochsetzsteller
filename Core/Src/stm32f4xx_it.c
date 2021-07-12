@@ -47,6 +47,11 @@ extern double U_soll;
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern ADC_HandleTypeDef hadc3;
+uint32_t	lem1[10];	//
+uint32_t	lem2[10];	//
+uint32_t	lem1_ref[10];	//
+uint32_t	lem2_ref[10];
+uint32_t	lem_count;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -256,7 +261,7 @@ void TIM1_CC_IRQHandler(void)
 		__HAL_TIM_CLEAR_IT(&htim1, TIM_IT_CC4);
 	}
   /* USER CODE END TIM1_CC_IRQn 0 */
-  //HAL_TIM_IRQHandler(&htim1);
+  HAL_TIM_IRQHandler(&htim1);
   /* USER CODE BEGIN TIM1_CC_IRQn 1 */
   //int status=TIM1->CNT;
   /* USER CODE END TIM1_CC_IRQn 1 */
@@ -272,13 +277,33 @@ void TIM4_IRQHandler(void)
 	HAL_ADC_Start_DMA(&hadc1,value_adc1,2);
 	HAL_ADC_Start_DMA(&hadc2,value_adc2,2);
 	HAL_ADC_Start_DMA(&hadc3,value_adc3,2);
+	/*voltages*/
 	double U_out=value_adc1[0]*720/4095;
 	U_in=value_adc1[1]*720/4095;
 	int U_diff=U_soll-U_out;
-	double i_const=(double)(value_adc3[1]-value_adc3[0])*25*2/4095;
+	/*currents*/
+	lem1[lem_count]=value_adc3[1];
+	lem2[lem_count]=value_adc2[1];
+	lem1_ref[lem_count]=value_adc3[0];
+	lem2_ref[lem_count]=value_adc3[0];
+	if(lem_count>=9)
+		lem_count=0;
+	else
+		lem_count++;
+	uint32_t lem1_mid=0,lem2_mid=0,lem1_ref_mid=0,lem2_ref_mid=0;
+	for(int i=0;i<10;i++)
+	{
+		lem1_ref_mid+=lem1_ref[i];
+		lem2_ref_mid+=lem2_ref[i];
+		lem1_mid+=lem1[i];
+		lem2_mid+=lem2[i];
+	}
+	//double i_const=(double)(value_adc3[1]-value_adc3[0])*25*2/4095;
+	double i_const=(double)(lem1_mid-lem1_ref_mid)/10*50/4095;
 	double delta_i=U_in/L*T*a;
 	double i_max_ber=i_const+delta_i;
-	double i_max=(value_adc2[1]-value_adc2[0])*25*2/4095;
+	//double i_max=(double)(value_adc2[1]-value_adc2[0])*25*2/4095;
+	double i_max=(double)(lem2_mid-lem2_ref_mid)/10*50/4095;
 	if(i_max_ber>24 || i_const>15)
 		a=a-0.2;
 	uint16_t K_p=1/600;
@@ -289,7 +314,8 @@ void TIM4_IRQHandler(void)
 		a2=1-a;
 		/*if(delta_i>2*i_const)		//Lückgrenze
 		{
-			a=sqrt(i_const/U_soll*2*L/T*(U_soll/U_in-1));	//sqrt(((U_soll/U_in)^2-U_soll/U_in)*2*L/(R*branches*T));
+			a=sqrt((1/U_in-1/U_soll)*2*L*i_const/T);
+			//a=sqrt(i_const/U_soll*2*L/T*(U_soll/U_in-1));	//sqrt(((U_soll/U_in)^2-U_soll/U_in)*2*L/(R*branches*T));
 			a2=a*U_in/(U_soll-U_in);
 		}*/
 	}
