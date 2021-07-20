@@ -92,7 +92,7 @@ double a=0.5;
 double a2=0.5;
 const double f=33000;
 const double T=1/f;
-const double U_soll=720;
+const double U_soll=40;
 const uint16_t branches=8;
 double U_in;
 const uint16_t safety_dist=10;		//1 Zeitschritt bei 168MHz entspricht ~6ns
