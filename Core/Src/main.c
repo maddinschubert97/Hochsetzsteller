@@ -87,19 +87,27 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define buf_size 10
 const double L=0.00034;
 double a=0.5;
 double a2=0.5;
+double U_in_mid;
+double U_in_buf[buf_size];
 const double f=33000;
 const double T=1/f;
-const double U_soll=40;
+const double U_soll=100;
 const uint16_t branches=8;
 double U_in;
 const uint16_t safety_dist=10;		//1 Zeitschritt bei 168MHz entspricht ~6ns
 
 void init()
 {
-	U_in=value_adc1[1]*720/4095;
+	/*for(int i=0;i<buf_size;i++)
+	{
+		U_in_mid+=value_adc1[1]*720/4095;
+		HAL_Delay(100);
+	}
+	U_in_mid/=buf_size;*/
 	//a=1-U_soll/U_in;	//Annahme nichtlückender Betrieb
 	if(a<0)
 		a=0;
@@ -497,7 +505,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 4200;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 9;
+  htim4.Init.Period = 99;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

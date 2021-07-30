@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define buf_size 10
 extern uint32_t	value_adc1[2];	//
 extern uint32_t	value_adc2[2];	//
 extern uint32_t	value_adc3[2];	//
@@ -42,7 +43,8 @@ double U_sum;
 double U_sum_neu;
 double U_out;
 double U_out_mid;
-double U_in_mid;
+extern double U_in;
+extern double U_in_mid;
 double i_const;
 double i_max;
 int reset_cnt;
@@ -53,14 +55,13 @@ extern double U_soll;
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern ADC_HandleTypeDef hadc3;
-#define buf_size 10
 uint32_t	lem1[buf_size];	//
 uint32_t	lem2[buf_size];	//
 uint32_t	lem1_ref[buf_size];	//
 uint32_t	lem2_ref[buf_size];
 uint32_t	lem_count;
 double	U_out_buf[buf_size];
-double U_in_buf[buf_size];
+extern double U_in_buf[buf_size];
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -251,6 +252,7 @@ void TIM1_CC_IRQHandler(void)
 	}
 	else if(TIM1->SR & TIM_SR_CC2IF)
 	{
+		HAL_ADC_Start_DMA(&hadc2,value_adc2,2);
 		GPIOB->BSRR=(uint32_t)GPIO_PIN_15 << 16U;
 		//HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, GPIO_PIN_RESET);
 		asm("NOP");
@@ -288,11 +290,11 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 0 */
 //U_out einlesen
 	HAL_ADC_Start_DMA(&hadc1,value_adc1,2);
-	HAL_ADC_Start_DMA(&hadc2,value_adc2,2);
+	//HAL_ADC_Start_DMA(&hadc2,value_adc2,2);
 	HAL_ADC_Start_DMA(&hadc3,value_adc3,2);
 	/*voltages*/
 	U_out=1.1*(double)value_adc1[0]*720/4095+1.7;	//y=1,1*x+1,7
-	U_in=(double)value_adc1[1]*720/4095;	//casting schlecht für Rechenzeit?
+	U_in=1.093*(double)value_adc1[1]*720/4095+0.073;	//casting schlecht für Rechenzeit?
 	/*currents*/
 	U_out_buf[lem_count]=U_out;
 	U_in_buf[lem_count]=U_in;
@@ -333,8 +335,8 @@ void TIM4_IRQHandler(void)
 	double i_max_ber=i_const+delta_i;
 	//double i_max=(double)(value_adc2[1]-value_adc2[0])*25*2/4095;
 	i_max=1.1*((double)lem2_mid-(double)lem2_ref_mid)*50/4095+0.15;
-	/*Sicherungsfunktion -> U_out anpassen!*/
-	if(i_max_ber>24 || i_const>15 || U_out_mid>50)
+	/*Sicherheitsfunktion -> U_out anpassen!*/
+	if(i_max_ber>24 || i_const>15 || U_out_mid>120)
 	{
 		a=0;//a=a-0.2;
 		HAL_TIM_OC_Stop_IT(&htim4, TIM_CHANNEL_1);
