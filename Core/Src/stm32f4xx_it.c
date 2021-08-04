@@ -32,7 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define buf_size 10
+#define buf_size 20
 extern uint32_t	value_adc1[2];	//
 extern uint32_t	value_adc2[2];	//
 extern uint32_t	value_adc3[2];	//
@@ -45,6 +45,7 @@ double U_out;
 double U_out_mid;
 extern double U_in;
 extern double U_in_mid;
+double U_diff_alt;
 double i_const;
 double i_max;
 int reset_cnt;
@@ -60,8 +61,13 @@ uint32_t	lem2[buf_size];	//
 uint32_t	lem1_ref[buf_size];	//
 uint32_t	lem2_ref[buf_size];
 uint32_t	lem_count;
+double a_buf[buf_size];
+double a2_buf[buf_size];
+double i_const_buf[buf_size];
+double delta_i_buf[buf_size];
 double	U_out_buf[buf_size];
 extern double U_in_buf[buf_size];
+int formel_cnt;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -289,12 +295,13 @@ void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
 //U_out einlesen
+	formel_cnt++;
 	HAL_ADC_Start_DMA(&hadc1,value_adc1,2);
 	//HAL_ADC_Start_DMA(&hadc2,value_adc2,2);
 	HAL_ADC_Start_DMA(&hadc3,value_adc3,2);
 	/*voltages*/
-	U_out=1.1*(double)value_adc1[0]*720/4095+1.7;	//y=1,1*x+1,7
-	U_in=1.093*(double)value_adc1[1]*720/4095+0.073;	//casting schlecht für Rechenzeit?
+	U_out=1.185*(double)value_adc1[0]*720/4095-0.4019;	//y=1,1*x+1,7
+	U_in=1.199*(double)value_adc1[1]*720/4095-0.9821;	//casting schlecht für Rechenzeit?
 	/*currents*/
 	U_out_buf[lem_count]=U_out;
 	U_in_buf[lem_count]=U_in;
@@ -330,31 +337,35 @@ void TIM4_IRQHandler(void)
 	 * Hälfte der 4095 Schritte steht zur Verfügung (da Rest negativ..)
 	 * Ausgleichsgeraden I_const: y=1.1*x+0.057, I_max: y=1.1*x-0.15
 	 * Faktor: 2*25/(4095*10)=50/4095*/
-	i_const=1.1*((double)lem1_mid-(double)lem1_ref_mid)*50/4095-0.057;
-	double delta_i=U_in_mid/L*T*a;
-	double i_max_ber=i_const+delta_i;
+	i_const=1.179*((double)lem1_mid-(double)lem1_ref_mid)*50/4095-0.06063;
+	double a_neu=1-U_in_mid/U_soll;
+	double delta_i=U_in_mid/L*T*a_neu;
+	//double i_max_ber=i_const+delta_i;
 	//double i_max=(double)(value_adc2[1]-value_adc2[0])*25*2/4095;
-	i_max=1.1*((double)lem2_mid-(double)lem2_ref_mid)*50/4095+0.15;
+	i_max=1.207*((double)lem2_mid-(double)lem2_ref_mid)*50/4095+0.3519;
 	/*Sicherheitsfunktion -> U_out anpassen!*/
-	if(i_max_ber>24 || i_const>15 || U_out_mid>120)
+	if(i_max>24 || i_const>15 || U_out_mid>200)
 	{
 		a=0;//a=a-0.2;
+		GPIOB->BSRR=(uint32_t)GPIO_PIN_15 << 16U;
+		GPIOE->BSRR=(uint32_t)GPIO_PIN_9 << 16U;
 		HAL_TIM_OC_Stop_IT(&htim4, TIM_CHANNEL_1);
-		TIM1->CCR1=0;	//evtl beim UG interrupt
-		TIM1->CCR2=5010;
+		HAL_TIM_OC_Stop_IT(&htim1, TIM_CHANNEL_1);
+		HAL_TIM_OC_Stop_IT(&htim1, TIM_CHANNEL_2);
 	}
-	double K_p=0.0002;
-	double K_i=50;
-	if(labs(U_diff+0.5)>0.1*U_soll && U_in_mid>10)	//Große Differenz -> Durchgriff auf Stellgröße
+	double K_p=0.005;
+	double K_i=2;
+	double K_d=1/100000;
+	if(labs(U_diff+0.5)>0.2*U_soll && U_in_mid>10 && formel_cnt>=100)	//Große Differenz -> Durchgriff auf Stellgröße
 	{
-		double a_neu=1-U_in_mid/U_soll;
 		double a2_neu=1-a_neu;
-		/*if(delta_i>2*i_const)		//Lückgrenze
+		if(delta_i-2*i_const>0)		//Lückgrenze
 		{
+			double i_a_soll=i_const*U_soll/U_out_mid;
 			a_neu=sqrt((1/U_in_mid-1/U_soll)*2*L*i_const/T);
 			//a=sqrt(i_const/U_soll*2*L/T*(U_soll/U_in_mid-1));	//sqrt(((U_soll/U_in)^2-U_soll/U_in)*2*L/(R*branches*T));
-			a2=a*U_in/(U_soll-U_in_mid);
-		}*/
+			a2_neu=a_neu*U_in_mid/(U_out_mid-U_in_mid);
+		}
 		if(a_neu<0)
 			a=0;
 		else if(a_neu>0.95)
@@ -367,16 +378,12 @@ void TIM4_IRQHandler(void)
 			a2=0.95;
 		else
 			a2=a2_neu;
+		formel_cnt=0;
 	}
 	else if(U_in_mid>10)	//PI-Regler
 	{
-			U_sum_neu=U_sum+U_diff*T;	//U_sum global
-			double a_neu=K_p*U_diff+K_i*U_sum;
-			double a2_neu;
-			if(delta_i-2*i_const>0.5)	//Lückbetrieb
-				a2_neu=a_neu*U_in_mid/(U_soll-U_in_mid);
-			else
-				a2_neu=1-a_neu;
+			U_sum_neu=U_sum+U_diff;	//U_sum global
+			a_neu=K_p*U_diff+K_i*U_sum_neu*T+K_d*(U_diff-U_diff_alt)/T;
 			if(a_neu<0)
 				a=0;
 			else if(a_neu>0.95)
@@ -392,12 +399,17 @@ void TIM4_IRQHandler(void)
 				a=a_neu;
 				reset_cnt=0;
 			}
+			double a2_neu;
+			if(delta_i/2-i_const>0)	//Lückbetrieb
+				a2_neu=a_neu*U_in_mid/(U_out_mid-U_in_mid);
+			else
+				a2_neu=1-a_neu;
 			if(a2_neu<0)
 				a2=0;
 			else if(a2_neu>0.95)
 				a2=0.95;
-			else if(a2_neu+a>1)	//zur Sicherheit
-				a2_neu=1-a;
+			else if (a+a2_neu>1)
+				a2=1-a;
 			else
 				a2=a2_neu;
 	}
@@ -406,18 +418,19 @@ void TIM4_IRQHandler(void)
 		a=0.5;
 		a2=0.5;
 	}
+	a_buf[lem_count]=a;
+	a2_buf[lem_count]=a2;
+	delta_i_buf[lem_count]=delta_i;
+	i_const_buf[lem_count]=i_const;
+	U_diff_alt=U_diff;
 	uint16_t period=TIM1->ARR;
 	TIM1->CCR1=0;	//evtl beim UG interrupt
 	TIM1->CCR2=a*period;
 	//TIM1->CCR3=a*period;
-	/*if((a+a2)*period>5010)
-		TIM1->CCR4=5010;
+	if(period-TIM1->CCR4<safety_dist || (a+a2)*period>5010)
+		TIM1->CCR4=6000;	//niemals ausgelöst
 	else
 		TIM1->CCR4=(a+a2)*period;
-	if(period-TIM1->CCR4<safety_dist)
-		__HAL_TIM_DISABLE_IT(&htim1, TIM_IT_CC4);
-	else
-		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC4);*/
 	//TIM1->CNT=TIM8->CNT;
   /* USER CODE END TIM4_IRQn 0 */
   //HAL_TIM_IRQHandler(&htim4);
@@ -433,15 +446,10 @@ void TIM8_CC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM8_CC_IRQn 0 */
 	//schaltet M1. Überprüfen, ob M2 aus ist!
-	if(TIM8->SR & TIM_SR_CC1IF)// && HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_9)==GPIO_PIN_RESET)	//Neue Periode
-	{
-		//_NOP();	//müsste automatisch eingestellt werden (PWM channel 1)
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-	}
-	else if(TIM8->SR & TIM_SR_CC2IF)
-	{
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
-	}
+	if(U_soll==150)
+		U_soll=60;
+	else
+		U_soll=150;
   /* USER CODE END TIM8_CC_IRQn 0 */
   HAL_TIM_IRQHandler(&htim8);
   /* USER CODE BEGIN TIM8_CC_IRQn 1 */

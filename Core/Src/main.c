@@ -87,7 +87,7 @@ static void MX_TIM8_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#define buf_size 10
+#define buf_size 20
 const double L=0.00034;
 double a=0.5;
 double a2=0.5;
@@ -95,7 +95,7 @@ double U_in_mid;
 double U_in_buf[buf_size];
 const double f=33000;
 const double T=1/f;
-const double U_soll=100;
+double U_soll=100;
 const uint16_t branches=8;
 double U_in;
 const uint16_t safety_dist=10;		//1 Zeitschritt bei 168MHz entspricht ~6ns
@@ -118,8 +118,8 @@ void init()
 		//a im Timer einstellen
 	HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_1);
 	HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_2);
-	//HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_3);
-	//HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_4);
+	HAL_TIM_OC_Start_IT(&htim8, TIM_CHANNEL_1);
+	HAL_TIM_OC_Start_IT(&htim1, TIM_CHANNEL_4);
 	HAL_TIM_OC_Start_IT(&htim4, TIM_CHANNEL_1);
 }
 /* USER CODE END 0 */
@@ -505,7 +505,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 4200;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 99;
+  htim4.Init.Period = 9;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -562,9 +562,9 @@ static void MX_TIM8_Init(void)
 
   /* USER CODE END TIM8_Init 1 */
   htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;
+  htim8.Init.Prescaler = 168;
   htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 5010;
+  htim8.Init.Period = 2000;
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
